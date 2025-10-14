@@ -209,6 +209,14 @@
       : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4';
 
     playerVideo.src = playerVideoSrc;
+    playerVideo.addEventListener('ended', () => {
+      if (gameActive) {
+        playerVideo.currentTime = 0;
+        playerVideo.play().catch(e => {
+          console.warn("Player video loop failed:", e);
+        });
+      }
+    });
 
     // Загрузка счёта
     scoreEl.textContent = score;
