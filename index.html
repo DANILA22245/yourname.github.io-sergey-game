@@ -379,11 +379,11 @@
         if (!gameActive) return;
         const diff = e.changedTouches[0].clientX - touchStartX;
         if (Math.abs(diff) > 60) {
-          if (diff > 0 && currentLane > 0) {
-            currentLane--;
-            updatePlayerPosition();
-          } else if (diff < 0 && currentLane < 2) {
+          if (diff > 0 && currentLane < 2) {
             currentLane++;
+            updatePlayerPosition();
+          } else if (diff < 0 && currentLane > 0) {
+            currentLane--;
             updatePlayerPosition();
           }
         }
