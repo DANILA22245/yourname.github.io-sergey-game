@@ -78,8 +78,8 @@
       height: auto;
       z-index: 5;
       pointer-events: none;
-      object-fit: contain;
-      background: transparent; 
+      object-fit: contain; /* ← Ключевое исправление */
+      background: transparent;
     }
     #score {
       position: absolute;
@@ -143,7 +143,7 @@
 </head>
 <body>
 
-  <!-- МЕНЮ С ФОНОВЫМ ВИДЕО -->
+  <!-- МЕНЮ -->
   <div id="menu">
     <video id="menuVideo" muted playsinline loop>
       <source src="assets/IMG_3058.mp4" type="video/mp4">
@@ -153,20 +153,18 @@
 
   <!-- ИГРОВОЙ ЭКРАН -->
   <div id="game">
-    <!-- Стартовое видео -->
     <video id="startVid" muted playsinline>
       <source src="assets/video5435982412527994375.mp4" type="video/mp4">
     </video>
 
-    <!-- Игровая сцена -->
     <div id="gameplayArea">
       <div id="score">🍔: <span id="count">0</span></div>
-      <video id="playerVideo" muted playsinline loop></video> <!-- Источник будет задан через JS -->
+      <video id="playerVideo" muted playsinline loop></video>
       <div id="gameArea"></div>
     </div>
   </div>
 
-  <!-- МОДАЛЬНОЕ ОКНО -->
+  <!-- GAME OVER -->
   <div id="gameOverModal">
     <div class="modal-content">
       <h2>Серега ударил по мячу и разъебал ноготь 😭</h2>
@@ -175,13 +173,13 @@
   </div>
 
   <script>
-    // === ФУНКЦИЯ ПРОВЕРКИ ПОДДЕРЖКИ WebM ===
+    // Проверка поддержки WebM
     function supportsWebM() {
       const video = document.createElement('video');
       return video.canPlayType('video/webm; codecs="vp8, vorbis"') !== '';
     }
 
-    // === НАСТРОЙКИ ===
+    // Настройки
     const LANES = 3;
     let currentLane = 1;
     let score = parseInt(localStorage.getItem('sergeyBurgers') || '0');
@@ -202,17 +200,19 @@
     const gameOverModal = document.getElementById('gameOverModal');
     const restartBtn = document.getElementById('restartBtn');
 
-    // Установка правильного видео для игрока (webm или mp4)
+    // Установка видео персонажа
     const playerVideoSrc = supportsWebM()
       ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
-      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4'; // Убедитесь, что этот файл существует!
+      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4';
 
     playerVideo.src = playerVideoSrc;
+    playerVideo.setAttribute('playsinline', '');
+    playerVideo.setAttribute('webkit-playsinline', '');
 
-    // Загрузка счёта
+    // Счёт
     scoreEl.textContent = score;
 
-    // Попытка автовоспроизведения фонового видео меню
+    // Автовоспроизведение меню
     menuVideo.play().catch(e => console.log("Menu video preload:", e));
 
     function getLaneX(lane) {
@@ -224,9 +224,11 @@
       const x = getLaneX(currentLane);
       playerVideo.style.left = x + 'px';
       playerVideo.style.transform = 'translateX(-50%)';
+      playerVideo.style.width = '120px'; // Фиксируем размер
+      playerVideo.style.height = 'auto';
     }
 
-    // === СТАРТ ИГРЫ ===
+    // Запуск игры
     function startGame() {
       if (gameStarted) return;
       gameStarted = true;
@@ -243,8 +245,15 @@
         startVid.style.display = 'none';
         gameplayArea.style.display = 'block';
 
+        // 🔥 Ключевая часть: перезагрузка и запуск видео персонажа
+        playerVideo.load();
         playerVideo.currentTime = 0;
-        playerVideo.play().catch(e => console.error("Player video failed:", e));
+        playerVideo.play().catch(e => {
+          console.warn("Player video autoplay blocked. Waiting for user interaction...");
+          document.addEventListener('click', () => {
+            playerVideo.play().catch(err => console.error("Play after click failed:", err));
+          }, { once: true });
+        });
 
         gameActive = true;
         updatePlayerPosition();
@@ -254,20 +263,17 @@
 
     startBtn.addEventListener('click', startGame);
 
-    // === ИГРОВОЙ ЦИКЛ ===
+    // Игровой цикл
     function gameLoop() {
       if (!gameActive) return;
-
       if (Math.random() < 0.03) spawnItem('burger');
       if (Math.random() < 0.005) spawnItem('obstacle');
-
       moveItems();
       checkCollisions();
-
       requestAnimationFrame(gameLoop);
     }
 
-    // === СОЗДАНИЕ ОБЪЕКТОВ ===
+    // Создание объектов
     function spawnItem(type) {
       const lane = Math.floor(Math.random() * LANES);
       const el = document.createElement('img');
@@ -287,17 +293,15 @@
         el.classList.add('obstacle');
         items.push({ el, lane, top: -60, type });
       }
-
       gameArea.appendChild(el);
     }
 
-    // === ДВИЖЕНИЕ ===
+    // Движение
     function moveItems() {
       for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i];
         item.top += 5;
         item.el.style.top = item.top + 'px';
-
         if (item.top > window.innerHeight) {
           item.el.remove();
           items.splice(i, 1);
@@ -305,13 +309,12 @@
       }
     }
 
-    // === СТОЛКНОВЕНИЯ ===
+    // Столкновения
     function checkCollisions() {
       for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i];
         const inPlayerZone = item.top > window.innerHeight * 0.7 && item.top < window.innerHeight * 0.95;
         const sameLane = item.lane === currentLane;
-
         if (inPlayerZone && sameLane) {
           if (item.type === 'burger') {
             score++;
@@ -327,18 +330,16 @@
       }
     }
 
-    // === КОНЕЦ ИГРЫ ===
+    // Конец игры
     function gameOver() {
       gameActive = false;
       gameOverModal.style.display = 'flex';
     }
 
-    // === ПЕРЕЗАПУСК ===
+    // Рестарт
     restartBtn.addEventListener('click', () => {
       items.forEach(item => item.el.remove());
       items = [];
-
-      // НЕ обнуляем score — бургеры накапливаются!
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
@@ -351,15 +352,24 @@
       startVid.onended = () => {
         startVid.style.display = 'none';
         gameplayArea.style.display = 'block';
+
+        // 🔥 Перезагрузка видео персонажа при рестарте
+        playerVideo.load();
         playerVideo.currentTime = 0;
-        playerVideo.play().catch(e => console.error("Player video failed on restart:", e));
+        playerVideo.play().catch(e => {
+          console.warn("Player video autoplay blocked on restart.");
+          document.addEventListener('click', () => {
+            playerVideo.play().catch(err => console.error("Play after click on restart failed:", err));
+          }, { once: true });
+        });
+
         gameActive = true;
         updatePlayerPosition();
         gameLoop();
       };
     });
 
-    // === УПРАВЛЕНИЕ ===
+    // Управление
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     let touchStartX = 0;
 
@@ -367,7 +377,6 @@
       window.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
       });
-
       window.addEventListener('touchend', (e) => {
         if (!gameActive) return;
         const diff = e.changedTouches[0].clientX - touchStartX;
@@ -396,7 +405,7 @@
     }
   </script>
 </body>
-
 </html>
+
 
 
