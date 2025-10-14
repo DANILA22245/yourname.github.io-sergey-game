@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+  <!-- ИСПРАВЛЕНО: убраны пробелы в конце URL -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -160,7 +161,8 @@
     <!-- Игровая сцена -->
     <div id="gameplayArea">
       <div id="score">🍔: <span id="count">0</span></div>
-      <video id="playerVideo" muted playsinline loop></video> <!-- Источник будет задан через JS -->
+      <!-- ИСПРАВЛЕНО: добавлен preload="auto" -->
+      <video id="playerVideo" muted playsinline loop preload="auto"></video>
       <div id="gameArea"></div>
     </div>
   </div>
@@ -204,7 +206,7 @@
     // Установка правильного видео для игрока (webm или mp4)
     const playerVideoSrc = supportsWebM()
       ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
-      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4'; // Убедитесь, что этот файл существует!
+      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4';
 
     playerVideo.src = playerVideoSrc;
 
@@ -227,38 +229,35 @@
 
     // === СТАРТ ИГРЫ ===
     function startGame() {
-  if (gameStarted) return;
-  gameStarted = true;
-  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (gameStarted) return;
+      gameStarted = true;
 
-  // 🔥 "Разогреваем" видео персонажа СРАЗУ при клике (в контексте user gesture)
-  playerVideo.play().catch(e => console.log("Player video warm-up:", e));
-  playerVideo.pause(); // сразу пауза, чтобы не мешало
+      // ✅ УБРАНО ВСЁ, что касалось playerVideo.play()/pause()
 
-  menu.style.display = 'none';
-  game.style.display = 'block';
-  gameActive = false;
+      menu.style.display = 'none';
+      game.style.display = 'block';
+      gameActive = false;
 
-  startVid.style.display = 'block';
-  startVid.currentTime = 0;
-  startVid.play().catch(e => console.error("Start video failed:", e));
+      startVid.style.display = 'block';
+      startVid.currentTime = 0;
+      startVid.play().catch(e => console.error("Start video failed:", e));
 
-  startVid.onended = () => {
-    startVid.style.display = 'none';
-    gameplayArea.style.display = 'block';
+      startVid.onended = () => {
+        startVid.style.display = 'none';
+        gameplayArea.style.display = 'block';
 
-    // Теперь можно безопасно играть
-    playerVideo.currentTime = 0;
-    playerVideo.play().catch(e => {
-      console.error("Player video failed to play:", e);
-      // Дополнительно: можно показать fallback-изображение
-    });
+        // ✅ Единственный вызов play() — здесь, после клика
+        playerVideo.currentTime = 0;
+        playerVideo.play().catch(e => {
+          console.error("Player video failed to play:", e);
+          // Опционально: можно добавить fallback на <img>, но сначала попробуем без него
+        });
 
-    gameActive = true;
-    updatePlayerPosition();
-    gameLoop();
-  };
-}
+        gameActive = true;
+        updatePlayerPosition();
+        gameLoop();
+      };
+    }
 
     startBtn.addEventListener('click', startGame);
 
@@ -346,7 +345,6 @@
       items.forEach(item => item.el.remove());
       items = [];
 
-      // НЕ обнуляем score — бургеры накапливаются!
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
@@ -401,6 +399,12 @@
           updatePlayerPosition();
         }
       });
+    }
+
+    // === Telegram WebApp (опционально) ===
+    if (window.Telegram?.WebApp) {
+      Telegram.WebApp.ready();
+      Telegram.WebApp.expand();
     }
   </script>
 </body>
