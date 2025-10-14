@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <!-- ИСПРАВЛЕНО: убраны пробелы в конце URL -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -69,17 +68,6 @@
       height: 100%;
       background: url('assets/512c5d04-68e6-4539-a13f-052ae0d9a9cd.jpg') center/cover no-repeat;
       z-index: 1;
-    }
-    #playerVideo {
-      position: absolute;
-      bottom: 40px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 120px;
-      height: auto;
-      z-index: 5;
-      pointer-events: none;
-      mix-blend-mode: multiply;
     }
     #score {
       position: absolute;
@@ -161,9 +149,8 @@
     <!-- Игровая сцена -->
     <div id="gameplayArea">
       <div id="score">🍔: <span id="count">0</span></div>
-      <!-- ИСПРАВЛЕНО: добавлен preload="auto" -->
-      <video id="playerVideo" muted playsinline loop preload="auto"></video>
       <div id="gameArea"></div>
+      <!-- Видео персонажа будет создано через JS -->
     </div>
   </div>
 
@@ -189,6 +176,7 @@
     let gameActive = false;
     let gameStarted = false;
     let items = [];
+    let playerVideo = null; // теперь управляем через JS
 
     // DOM
     const menu = document.getElementById('menu');
@@ -196,32 +184,16 @@
     const game = document.getElementById('game');
     const startVid = document.getElementById('startVid');
     const gameplayArea = document.getElementById('gameplayArea');
-    const playerVideo = document.getElementById('playerVideo');
     const scoreEl = document.getElementById('count');
     const gameArea = document.getElementById('gameArea');
     const startBtn = document.getElementById('startBtn');
     const gameOverModal = document.getElementById('gameOverModal');
     const restartBtn = document.getElementById('restartBtn');
 
-    // Установка правильного видео для игрока (webm или mp4)
-    const playerVideoSrc = supportsWebM()
-      ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
-      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4';
-
-    playerVideo.src = playerVideoSrc;
-    playerVideo.addEventListener('ended', () => {
-      if (gameActive) {
-        playerVideo.currentTime = 0;
-        playerVideo.play().catch(e => {
-          console.warn("Player video loop failed:", e);
-        });
-      }
-    });
-
     // Загрузка счёта
     scoreEl.textContent = score;
 
-    // Попытка автовоспроизведения фонового видео меню
+    // Автовоспроизведение фонового видео меню
     menuVideo.play().catch(e => console.log("Menu video preload:", e));
 
     function getLaneX(lane) {
@@ -230,17 +202,64 @@
     }
 
     function updatePlayerPosition() {
+      if (!playerVideo) return;
       const x = getLaneX(currentLane);
       playerVideo.style.left = x + 'px';
       playerVideo.style.transform = 'translateX(-50%)';
+    }
+
+    // === СОЗДАНИЕ ВИДЕО ПЕРСОНАЖА ===
+    function createPlayerVideo() {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      video.style.position = 'absolute';
+      video.style.bottom = '40px';
+      video.style.left = '50%';
+      video.style.transform = 'translateX(-50%)';
+      video.style.width = '120px';
+      video.style.height = 'auto';
+      video.style.zIndex = '5';
+      video.style.pointerEvents = 'none';
+      video.style.mixBlendMode = 'multiply';
+
+      const src = supportsWebM()
+        ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
+        : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4';
+
+      video.src = src;
+      return video;
+    }
+
+    // === ЗАЦИКЛИВАНИЕ ЧЕРЕЗ ПЕРЕСОЗДАНИЕ ===
+    function startPlayerLoop() {
+      // Удаляем старое видео
+      if (playerVideo) {
+        playerVideo.remove();
+      }
+
+      // Создаём новое
+      playerVideo = createPlayerVideo();
+      gameplayArea.appendChild(playerVideo);
+
+      // Воспроизводим
+      playerVideo.play().catch(e => console.warn("Player video play failed:", e));
+
+      // При окончании — перезапускаем
+      playerVideo.addEventListener('ended', () => {
+        if (gameActive) {
+          startPlayerLoop(); // 🔁 рекурсивный перезапуск
+        }
+      });
+
+      updatePlayerPosition();
     }
 
     // === СТАРТ ИГРЫ ===
     function startGame() {
       if (gameStarted) return;
       gameStarted = true;
-
-      // ✅ УБРАНО ВСЁ, что касалось playerVideo.play()/pause()
 
       menu.style.display = 'none';
       game.style.display = 'block';
@@ -254,15 +273,8 @@
         startVid.style.display = 'none';
         gameplayArea.style.display = 'block';
 
-        // ✅ Единственный вызов play() — здесь, после клика
-        playerVideo.currentTime = 0;
-        playerVideo.play().catch(e => {
-          console.error("Player video failed to play:", e);
-          // Опционально: можно добавить fallback на <img>, но сначала попробуем без него
-        });
-
         gameActive = true;
-        updatePlayerPosition();
+        startPlayerLoop(); // ✅ Запуск анимации персонажа
         gameLoop();
       };
     }
@@ -353,6 +365,11 @@
       items.forEach(item => item.el.remove());
       items = [];
 
+      if (playerVideo) {
+        playerVideo.remove();
+        playerVideo = null;
+      }
+
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
@@ -365,10 +382,8 @@
       startVid.onended = () => {
         startVid.style.display = 'none';
         gameplayArea.style.display = 'block';
-        playerVideo.currentTime = 0;
-        playerVideo.play().catch(e => console.error("Player video failed on restart:", e));
         gameActive = true;
-        updatePlayerPosition();
+        startPlayerLoop(); // ✅ Перезапуск анимации
         gameLoop();
       };
     });
@@ -409,7 +424,7 @@
       });
     }
 
-    // === Telegram WebApp (опционально) ===
+    // === Telegram WebApp ===
     if (window.Telegram?.WebApp) {
       Telegram.WebApp.ready();
       Telegram.WebApp.expand();
@@ -417,6 +432,7 @@
   </script>
 </body>
 </html>
+
 
 
 
