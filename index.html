@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Серега Бежит</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      touch-action: manipulation;
+    }
+    #menu {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      gap: 20px;
+      position: relative;
+      background: #000;
+    }
+    #menuVideo {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    }
+    #menu button {
+      padding: 16px 32px;
+      font-size: 20px;
+      border: none;
+      border-radius: 12px;
+      background: rgba(233, 30, 99, 0.85);
+      color: white;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      z-index: 10;
+    }
+    #game {
+      display: none;
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+    #startVid {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      z-index: 10;
+    }
+    #gameplayArea {
+      display: none;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('assets/512c5d04-68e6-4539-a13f-052ae0d9a9cd.jpg') center/cover no-repeat;
+      z-index: 1;
+    }
+    #playerVideo {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: auto;
+      z-index: 5;
+      pointer-events: none;
+    }
+    #score {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: 0 0 6px #000;
+    }
+    .item {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .item.obstacle {
+      filter: drop-shadow(0 0 5px #ff4444);
+    }
+
+    /* Модальное окно Game Over */
+    #gameOverModal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      padding: 20px;
+    }
+    .modal-content {
+      background: #222;
+      padding: 30px;
+      border-radius: 16px;
+      text-align: center;
+      max-width: 300px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+    }
+    .modal-content h2 {
+      font-size: 22px;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+    .modal-content button {
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: #e91e63;
+      color: white;
+      cursor: pointer;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- МЕНЮ С ФОНОВЫМ ВИДЕО -->
+  <div id="menu">
+    <video id="menuVideo" muted playsinline loop>
+      <source src="assets/IMG_3058.mp4" type="video/mp4">
+    </video>
+    <button id="startBtn">Погнали нахуй</button>
+  </div>
+
+  <!-- ИГРОВОЙ ЭКРАН -->
+  <div id="game">
+    <!-- Стартовое видео -->
+    <video id="startVid" muted playsinline>
+      <source src="assets/video5435982412527994375.mp4" type="video/mp4">
+    </video>
+
+    <!-- Игровая сцена -->
+    <div id="gameplayArea">
+      <div id="score">🍔: <span id="count">0</span></div>
+      <video id="playerVideo" muted playsinline loop></video> <!-- Источник будет задан через JS -->
+      <div id="gameArea"></div>
+    </div>
+  </div>
+
+  <!-- МОДАЛЬНОЕ ОКНО -->
+  <div id="gameOverModal">
+    <div class="modal-content">
+      <h2>Серега ударил по мячу и разъебал ноготь 😭</h2>
+      <button id="restartBtn">Спорт хуйня</button>
+    </div>
+  </div>
+
+  <script>
+    // === ФУНКЦИЯ ПРОВЕРКИ ПОДДЕРЖКИ WebM ===
+    function supportsWebM() {
+      const video = document.createElement('video');
+      return video.canPlayType('video/webm; codecs="vp8, vorbis"') !== '';
+    }
+
+    // === НАСТРОЙКИ ===
+    const LANES = 3;
+    let currentLane = 1;
+    let score = parseInt(localStorage.getItem('sergeyBurgers') || '0');
+    let gameActive = false;
+    let gameStarted = false;
+    let items = [];
+
+    // DOM
+    const menu = document.getElementById('menu');
+    const menuVideo = document.getElementById('menuVideo');
+    const game = document.getElementById('game');
+    const startVid = document.getElementById('startVid');
+    const gameplayArea = document.getElementById('gameplayArea');
+    const playerVideo = document.getElementById('playerVideo');
+    const scoreEl = document.getElementById('count');
+    const gameArea = document.getElementById('gameArea');
+    const startBtn = document.getElementById('startBtn');
+    const gameOverModal = document.getElementById('gameOverModal');
+    const restartBtn = document.getElementById('restartBtn');
+
+    // Установка правильного видео для игрока (webm или mp4)
+    const playerVideoSrc = supportsWebM()
+      ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
+      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4'; // Убедитесь, что этот файл существует!
+
+    playerVideo.src = playerVideoSrc;
+
+    // Загрузка счёта
+    scoreEl.textContent = score;
+
+    // Попытка автовоспроизведения фонового видео меню
+    menuVideo.play().catch(e => console.log("Menu video preload:", e));
+
+    function getLaneX(lane) {
+      const w = window.innerWidth;
+      return [w * 0.2, w * 0.5, w * 0.8][lane];
+    }
+
+    function updatePlayerPosition() {
+      const x = getLaneX(currentLane);
+      playerVideo.style.left = x + 'px';
+      playerVideo.style.transform = 'translateX(-50%)';
+    }
+
+    // === СТАРТ ИГРЫ ===
+    function startGame() {
+      if (gameStarted) return;
+      gameStarted = true;
+
+      menu.style.display = 'none';
+      game.style.display = 'block';
+      gameActive = false;
+
+      startVid.style.display = 'block';
+      startVid.currentTime = 0;
+      startVid.play().catch(e => console.error("Start video failed:", e));
+
+      startVid.onended = () => {
+        startVid.style.display = 'none';
+        gameplayArea.style.display = 'block';
+
+        playerVideo.currentTime = 0;
+        playerVideo.play().catch(e => console.error("Player video failed:", e));
+
+        gameActive = true;
+        updatePlayerPosition();
+        gameLoop();
+      };
+    }
+
+    startBtn.addEventListener('click', startGame);
+
+    // === ИГРОВОЙ ЦИКЛ ===
+    function gameLoop() {
+      if (!gameActive) return;
+
+      if (Math.random() < 0.03) spawnItem('burger');
+      if (Math.random() < 0.005) spawnItem('obstacle');
+
+      moveItems();
+      checkCollisions();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // === СОЗДАНИЕ ОБЪЕКТОВ ===
+    function spawnItem(type) {
+      const lane = Math.floor(Math.random() * LANES);
+      const el = document.createElement('img');
+      el.className = 'item';
+      el.dataset.lane = lane;
+      el.dataset.type = type;
+
+      if (type === 'burger') {
+        el.src = 'assets/zFY1nVjmRgzJSjctAKqE2g-fotor-bg-remover-20251014121040.png';
+        el.style.left = getLaneX(lane) - 30 + 'px';
+        el.style.top = '-60px';
+        items.push({ el, lane, top: -60, type });
+      } else if (type === 'obstacle') {
+        el.src = 'assets/myach.png';
+        el.style.left = getLaneX(lane) - 30 + 'px';
+        el.style.top = '-60px';
+        el.classList.add('obstacle');
+        items.push({ el, lane, top: -60, type });
+      }
+
+      gameArea.appendChild(el);
+    }
+
+    // === ДВИЖЕНИЕ ===
+    function moveItems() {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        item.top += 5;
+        item.el.style.top = item.top + 'px';
+
+        if (item.top > window.innerHeight) {
+          item.el.remove();
+          items.splice(i, 1);
+        }
+      }
+    }
+
+    // === СТОЛКНОВЕНИЯ ===
+    function checkCollisions() {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const item = items[i];
+        const inPlayerZone = item.top > window.innerHeight * 0.7 && item.top < window.innerHeight * 0.95;
+        const sameLane = item.lane === currentLane;
+
+        if (inPlayerZone && sameLane) {
+          if (item.type === 'burger') {
+            score++;
+            localStorage.setItem('sergeyBurgers', score);
+            scoreEl.textContent = score;
+            item.el.remove();
+            items.splice(i, 1);
+          } else if (item.type === 'obstacle') {
+            gameOver();
+            return;
+          }
+        }
+      }
+    }
+
+    // === КОНЕЦ ИГРЫ ===
+    function gameOver() {
+      gameActive = false;
+      gameOverModal.style.display = 'flex';
+    }
+
+    // === ПЕРЕЗАПУСК ===
+    restartBtn.addEventListener('click', () => {
+      items.forEach(item => item.el.remove());
+      items = [];
+
+      // НЕ обнуляем score — бургеры накапливаются!
+      gameOverModal.style.display = 'none';
+      gameActive = false;
+      gameStarted = false;
+      gameplayArea.style.display = 'none';
+
+      startVid.style.display = 'block';
+      startVid.currentTime = 0;
+      startVid.play().catch(e => console.error("Start video failed on restart:", e));
+
+      startVid.onended = () => {
+        startVid.style.display = 'none';
+        gameplayArea.style.display = 'block';
+        playerVideo.currentTime = 0;
+        playerVideo.play().catch(e => console.error("Player video failed on restart:", e));
+        gameActive = true;
+        updatePlayerPosition();
+        gameLoop();
+      };
+    });
+
+    // === УПРАВЛЕНИЕ ===
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    let touchStartX = 0;
+
+    if (isTouchDevice) {
+      window.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+      });
+
+      window.addEventListener('touchend', (e) => {
+        if (!gameActive) return;
+        const diff = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(diff) > 60) {
+          if (diff > 0 && currentLane > 0) {
+            currentLane--;
+            updatePlayerPosition();
+          } else if (diff < 0 && currentLane < 2) {
+            currentLane++;
+            updatePlayerPosition();
+          }
+        }
+      });
+    } else {
+      window.addEventListener('click', (e) => {
+        if (!gameActive) return;
+        const half = window.innerWidth / 2;
+        if (e.clientX < half && currentLane > 0) {
+          currentLane--;
+          updatePlayerPosition();
+        } else if (e.clientX > half && currentLane < 2) {
+          currentLane++;
+          updatePlayerPosition();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
