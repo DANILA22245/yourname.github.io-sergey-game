@@ -159,9 +159,7 @@
     <!-- Игровая сцена -->
     <div id="gameplayArea">
       <div id="score">🍔: <span id="count">0</span></div>
-      <video id="playerVideo" muted playsinline loop>
-        <source src="assets/ed78c27cdbc94f7ca120261cea495577.mp4" type="video/mp4">
-      </video>
+      <video id="playerVideo" muted playsinline loop></video> <!-- Источник будет задан через JS -->
       <div id="gameArea"></div>
     </div>
   </div>
@@ -175,6 +173,12 @@
   </div>
 
   <script>
+    // === ФУНКЦИЯ ПРОВЕРКИ ПОДДЕРЖКИ WebM ===
+    function supportsWebM() {
+      const video = document.createElement('video');
+      return video.canPlayType('video/webm; codecs="vp8, vorbis"') !== '';
+    }
+
     // === НАСТРОЙКИ ===
     const LANES = 3;
     let currentLane = 1;
@@ -195,6 +199,13 @@
     const startBtn = document.getElementById('startBtn');
     const gameOverModal = document.getElementById('gameOverModal');
     const restartBtn = document.getElementById('restartBtn');
+
+    // Установка правильного видео для игрока (webm или mp4)
+    const playerVideoSrc = supportsWebM()
+      ? 'assets/ed78c27cdbc94f7ca120261cea495577.webm'
+      : 'assets/ed78c27cdbc94f7ca120261cea495577.mp4'; // Убедитесь, что этот файл существует!
+
+    playerVideo.src = playerVideoSrc;
 
     // Загрузка счёта
     scoreEl.textContent = score;
@@ -325,7 +336,7 @@
       items.forEach(item => item.el.remove());
       items = [];
 
-      // ВАЖНО: НЕ ОБНУЛЯЕМ score — бургеры накапливаются!
+      // НЕ обнуляем score — бургеры накапливаются!
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
