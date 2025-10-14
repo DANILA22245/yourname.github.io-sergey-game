@@ -233,9 +233,7 @@
 
   // 🔥 "Разогреваем" видео персонажа СРАЗУ при клике (в контексте user gesture)
   playerVideo.play().catch(e => console.log("Player video warm-up:", e));
-  if (!isMobile) {
-    playerVideo.pause(); // только на десктопе
-  }
+  playerVideo.pause(); // сразу пауза, чтобы не мешало
 
   menu.style.display = 'none';
   game.style.display = 'block';
