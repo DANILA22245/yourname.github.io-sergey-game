@@ -3,7 +3,7 @@
 <head>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Серега Бежит</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -132,7 +132,7 @@
 
   <!-- МЕНЮ -->
   <div id="menu">
-    <video id="menuVideo" muted playsinline loop>
+    <video id="menuVideo" muted playsinline webkit-playsinline disableRemotePlayback loop>
       <source src="assets/IMG_3058.mp4" type="video/mp4">
     </video>
     <button id="startBtn">Погнали нахуй</button>
@@ -140,7 +140,7 @@
 
   <!-- ИГРА -->
   <div id="game">
-    <video id="startVid" muted playsinline>
+    <video id="startVid" muted playsinline webkit-playsinline disableRemotePlayback>
       <source src="assets/video5435982412527994375.mp4" type="video/mp4">
     </video>
 
@@ -159,6 +159,12 @@
   </div>
 
   <script>
+    // Telegram WebApp — инициализация в самом начале
+    if (window.Telegram?.WebApp) {
+      Telegram.WebApp.ready();
+      Telegram.WebApp.expand();
+    }
+
     function supportsWebM() {
       const video = document.createElement('video');
       return video.canPlayType('video/webm; codecs="vp8, vorbis"') !== '';
@@ -166,7 +172,7 @@
 
     const LANES = 3;
     let currentLane = 1;
-    let score = 0; // localStorage удалён
+    let score = 0;
     let gameActive = false;
     let gameStarted = false;
     let items = [];
@@ -184,7 +190,9 @@
     const gameOverBtn = document.getElementById('gameOverBtn');
 
     scoreEl.textContent = score;
-    menuVideo.play().catch(e => console.log("Menu video preload:", e));
+
+    // НЕ пытаемся запустить menuVideo автоматически — это запрещено на мобилках
+    // Всё воспроизведение начинается ТОЛЬКО после клика
 
     function getLaneX(lane) {
       const w = window.innerWidth;
@@ -202,6 +210,9 @@
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('disableRemotePlayback', '');
       video.preload = 'auto';
       video.style.position = 'absolute';
       video.style.bottom = '40px';
@@ -225,6 +236,7 @@
       if (playerVideo) playerVideo.remove();
       playerVideo = createPlayerVideo();
       gameplayArea.appendChild(playerVideo);
+      // Запуск разрешён, потому что вызывается после клика
       playerVideo.play().catch(e => console.warn("Player video play failed:", e));
       playerVideo.addEventListener('ended', () => {
         if (gameActive) startPlayerLoop();
@@ -232,24 +244,37 @@
       updatePlayerPosition();
     }
 
+    function startGameplay() {
+      gameplayArea.style.display = 'block';
+      gameActive = true;
+      startPlayerLoop();
+      gameLoop();
+    }
+
     function startGame() {
       if (gameStarted) return;
       gameStarted = true;
+
       menu.style.display = 'none';
       game.style.display = 'block';
       gameActive = false;
 
       startVid.style.display = 'block';
       startVid.currentTime = 0;
-      startVid.play().catch(e => console.error("Start video failed:", e));
+      // 🔑 Ключевой момент: play() вызывается в контексте клика → разрешено!
+      startVid.play().catch(err => {
+        console.error("Start video play failed:", err);
+        // Если не запустилось — всё равно продолжаем через 300 мс
+        setTimeout(() => {
+          startVid.style.display = 'none';
+          startGameplay();
+        }, 300);
+      });
 
-      startVid.onended = () => {
+      startVid.addEventListener('ended', () => {
         startVid.style.display = 'none';
-        gameplayArea.style.display = 'block';
-        gameActive = true;
-        startPlayerLoop();
-        gameLoop();
-      };
+        startGameplay();
+      }, { once: true });
     }
 
     startBtn.addEventListener('click', startGame);
@@ -258,7 +283,7 @@
       if (!gameActive) return;
       if (Math.random() < 0.03) spawnItem('burger');
       if (Math.random() < 0.005) spawnItem('obstacle');
-      if (Math.random() < 0.002) spawnItem('toxicGirl'); // ← баба
+      if (Math.random() < 0.002) spawnItem('toxicGirl');
       moveItems();
       checkCollisions();
       requestAnimationFrame(gameLoop);
@@ -283,7 +308,7 @@
         el.classList.add('obstacle');
         items.push({ el, lane, top: -60, type });
       } else if (type === 'toxicGirl') {
-        el.src = 'assets/17-fotor-bg-remover-20251016132236.png'; // ← изображение "бабы"
+        el.src = 'assets/17-fotor-bg-remover-20251016132236.png';
         el.style.left = getLaneX(lane) - 30 + 'px';
         el.style.top = '-60px';
         el.classList.add('obstacle');
@@ -321,7 +346,6 @@
             showGameOver("Серега ударил по мячу и разъебал ноготь 😭", "Спорт хуйня");
             return;
           } else if (item.type === 'toxicGirl') {
-            // ← ВОТ ОНО!
             showGameOver("Тиндер ушёл из России", "Пошла нахуй");
             return;
           }
@@ -344,7 +368,6 @@
         playerVideo = null;
       }
 
-      // Скрыть модалку и сбросить состояние
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
@@ -352,42 +375,51 @@
       score = 0;
       scoreEl.textContent = score;
 
-      // Перезапуск через стартовое видео
+      // Перезапуск — снова в контексте клика!
       startVid.style.display = 'block';
       startVid.currentTime = 0;
-      startVid.play().catch(e => console.error("Start video failed on restart:", e));
+      startVid.play().catch(err => {
+        console.error("Restart video play failed:", err);
+        setTimeout(() => {
+          startVid.style.display = 'none';
+          gameplayArea.style.display = 'block';
+          gameActive = true;
+          startPlayerLoop();
+          gameLoop();
+        }, 300);
+      });
 
-      startVid.onended = () => {
+      startVid.addEventListener('ended', () => {
         startVid.style.display = 'none';
         gameplayArea.style.display = 'block';
         gameActive = true;
         startPlayerLoop();
         gameLoop();
-      };
+      }, { once: true });
     });
 
     // Управление
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    let touchStartX = 0;
 
     if (isTouchDevice) {
       window.addEventListener('touchstart', (e) => {
-        touchStartX = e.touches[0].clientX;
-        e.preventDefault();
-      }, { passive: false });
-
-      window.addEventListener('touchend', (e) => {
         if (!gameActive) return;
-        const diff = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(diff) > 60) {
-          if (diff > 0 && currentLane < 2) {
-            currentLane++;
-            updatePlayerPosition();
-          } else if (diff < 0 && currentLane > 0) {
-            currentLane--;
-            updatePlayerPosition();
+        const touchStartX = e.touches[0].clientX;
+        const handleTouchEnd = (ev) => {
+          const diff = ev.changedTouches[0].clientX - touchStartX;
+          if (Math.abs(diff) > 60) {
+            if (diff > 0 && currentLane < 2) {
+              currentLane++;
+              updatePlayerPosition();
+            } else if (diff < 0 && currentLane > 0) {
+              currentLane--;
+              updatePlayerPosition();
+            }
           }
-        }
+          window.removeEventListener('touchend', handleTouchEnd, { passive: false });
+          ev.preventDefault();
+        };
+        window.addEventListener('touchend', handleTouchEnd, { passive: false });
         e.preventDefault();
       }, { passive: false });
     } else {
@@ -403,15 +435,10 @@
         }
       });
     }
-
-    // Telegram WebApp
-    if (window.Telegram?.WebApp) {
-      Telegram.WebApp.ready();
-      Telegram.WebApp.expand();
-    }
   </script>
 </body>
 </html>
+
 
 
 
