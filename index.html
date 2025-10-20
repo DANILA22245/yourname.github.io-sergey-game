@@ -125,6 +125,7 @@
       background: #e91e63;
       color: white;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent; /* убирает серый отклик на iOS */
     }
   </style>
 </head>
@@ -191,9 +192,6 @@
 
     scoreEl.textContent = score;
 
-    // НЕ пытаемся запустить menuVideo автоматически — это запрещено на мобилках
-    // Всё воспроизведение начинается ТОЛЬКО после клика
-
     function getLaneX(lane) {
       const w = window.innerWidth;
       return [w * 0.2, w * 0.5, w * 0.8][lane];
@@ -236,7 +234,6 @@
       if (playerVideo) playerVideo.remove();
       playerVideo = createPlayerVideo();
       gameplayArea.appendChild(playerVideo);
-      // Запуск разрешён, потому что вызывается после клика
       playerVideo.play().catch(e => console.warn("Player video play failed:", e));
       playerVideo.addEventListener('ended', () => {
         if (gameActive) startPlayerLoop();
@@ -261,10 +258,8 @@
 
       startVid.style.display = 'block';
       startVid.currentTime = 0;
-      // 🔑 Ключевой момент: play() вызывается в контексте клика → разрешено!
       startVid.play().catch(err => {
         console.error("Start video play failed:", err);
-        // Если не запустилось — всё равно продолжаем через 300 мс
         setTimeout(() => {
           startVid.style.display = 'none';
           startGameplay();
@@ -359,8 +354,9 @@
       gameOverModal.style.display = 'flex';
     }
 
-    gameOverBtn.addEventListener('click', () => {
-      // Очистка
+    // ✅ УНИВЕРСАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ МОБИЛКИ И ДЕСКТОПА
+    function handleRestart() {
+      // Очистка игровых объектов
       items.forEach(item => item.el.remove());
       items = [];
       if (playerVideo) {
@@ -368,6 +364,7 @@
         playerVideo = null;
       }
 
+      // Сброс состояния
       gameOverModal.style.display = 'none';
       gameActive = false;
       gameStarted = false;
@@ -375,7 +372,7 @@
       score = 0;
       scoreEl.textContent = score;
 
-      // Перезапуск — снова в контексте клика!
+      // Перезапуск — в контексте пользовательского действия!
       startVid.style.display = 'block';
       startVid.currentTime = 0;
       startVid.play().catch(err => {
@@ -396,7 +393,11 @@
         startPlayerLoop();
         gameLoop();
       }, { once: true });
-    });
+    }
+
+    // Поддержка и клика, и тача
+    gameOverBtn.addEventListener('click', handleRestart);
+    gameOverBtn.addEventListener('touchend', handleRestart);
 
     // Управление
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
